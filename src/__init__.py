@@ -77,8 +77,22 @@ class PoemByCompanyId(Resource):
         poem,response_code = groq_client.generate_poem(company_name, prompt_file_path)
         return {"poem":poem,"name":key_word, "response_code":response_code}
 
+class EvaluationByCompanyId(Resource):
+    def get(self,companyId):
+        #create an instance
+        groq_client = GroqClient()
+        # Acquire company name by id firstly
+        company_data = companies.find_one_or_404({"id": companyId})
+        company_name = company_data["name"]
+        category=company_data["category"]
+        #generate poem
+        prompt_file_path='src/llm/groq_api_additional_information.json'
+        evaluation,response_code = groq_client.generate_competitive_evaluation(company_name, category, prompt_file_path)
+        return {"evaluation":evaluation,"name":company_name,"category":category, "response_code":response_code}
+
 
 
 api.add_resource(CompaniesList, '/companies')
 api.add_resource(Companies, '/companies/<int:id>')
 api.add_resource(PoemByCompanyId, '/llm/groq/poem/<int:companyId>')
+api.add_resource(EvaluationByCompanyId, '/llm/groq/evaluation/<int:companyId>')
