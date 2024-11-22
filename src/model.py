@@ -57,3 +57,13 @@ class PatientInput(BaseModel):
     muscle_stiffness: str
     alopecia: str
     obesity: str
+
+class PatientsSankey(BaseModel):
+    C1: str
+    C2: str
+    C3: str
+    C4: str
+    C5: str
+    C6: str
+    C7: str
+    C8: str
