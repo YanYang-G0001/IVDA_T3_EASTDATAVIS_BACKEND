@@ -1,14 +1,19 @@
+from typing import Tuple
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_restx import Resource, Api
 from flask_pymongo import PyMongo
 from pymongo.collection import Collection
 from .model import PatientsCat, PatientInput, PatientsSankey
+from .datapreprocess import normalize_for_radar
 from src.llm.groq_llm import GroqClient
 from bson import ObjectId
+
 import os
 import json
 import pandas as pd
+import joblib
 
 # Configure Flask & Flask-PyMongo:
 app = Flask(__name__)
@@ -23,6 +28,7 @@ patients_cat: Collection = pymongo.db.ESDRP
 patients_merged: Collection = pymongo.db.MERGED
 patients_sankey: Collection = pymongo.db.SANKEY
 api = Api(app)
+best_model = joblib.load('src/best_xgb_model1.pkl')
 class PatientsCatList(Resource):
     def get(self, args=None):
         # retrieve the arguments and convert to a dict
@@ -36,27 +42,53 @@ class PatientsCatList(Resource):
         #    cursor = patients_cat.find(args)
         # we return all companies as json
         return [PatientsCat(**doc).to_json() for doc in cursor]
-def fake_predict(patient: PatientInput) -> str:
-    """
-    temp fake model
-    """
-    if patient.polyuria.lower() == "yes" or patient.polydipsia.lower() == "yes":
-        return "Positive"
-    return "Negative"
+def individual_predict(patient: PatientInput) -> tuple[str, str]:
+
+    # other data like 'Pregnancies' has been set to the average
+    input_data = {
+        'Pregnancies': patient.pregnancies,
+        'Glucose': patient.glucose,
+        'Blood pressure': patient.bp,
+        'Skin thickness': patient.st,
+        'Insulin': patient.insulin,
+        'Body mass index': patient.bmi,
+        'Diabetes pedigree function': patient.dpf,
+        'Age': patient.age
+    }
+    input_df = pd.DataFrame([input_data])
+
+    input_df = input_df[['Pregnancies', 'Glucose', 'Blood pressure', 'Skin thickness',
+                         'Insulin', 'Body mass index', 'Diabetes pedigree function', 'Age']]
+
+    # predict : 0-non diabetes or 1-diabetes
+    pred_label = best_model.predict(input_df)[0]
+    # get normalized data
+    # dpm increased by 100 times, pregnancy increased by 10 times, for visualization
+    input_data['Diabetes pedigree function'] = input_data['Diabetes pedigree function']  * 100
+    input_data['Pregnancies'] = input_data['Pregnancies'] * 10
+    normalized_data = normalize_for_radar(input_data)
+    return str(pred_label), str(normalized_data)
 
 class PredictDisease(Resource):
     def post(self):
+        prediction = 'unknown'  # Default value in case result is not 1 or 0
         try:
             data = request.get_json()
             patient = PatientInput(**data)
-            prediction = fake_predict(patient)
+            result, normalize_data = individual_predict(patient)
+            if result == '1':
+                prediction = 'positive'
+            elif result == '0':
+                prediction = 'negative'
+
             return jsonify({
-                "id": patient.id,
-                "name": patient.name,
-                "prediction": prediction
+                "prediction": prediction,
+                "result": result,
+                "normalized": normalize_data
             })
         except Exception as e:
             return {"error": f"Invalid input: {str(e)}"}, 400
+
 class PatientsSankey(Resource):
     def get(self):
         """
