@@ -120,80 +120,118 @@ class SankeyData(Resource):
             request_data = request.get_json()
             nodes = request_data.get("nodes", [])
             filters = request_data.get("filters", {})
-            print(filters,nodes)
+            #print(filters, nodes)
 
             # Fetch the data from the MongoDB collection (patients_sankey)
             cursor = patients_sankey.find({}, {"_id": 0})  # Apply filters directly to the MongoDB query
-            #print(cursor)
             data = list(cursor)
-            #print(data)
+
+            # Convert data to DataFrame
+            if not data:
+                print("No data returned from database.")
+                return {"nodes": {"label": [], "color": []},
+                        "links": {"source": [], "target": [], "value": [], "color": []}}
 
             data = convert_objectid_to_str(data)
-            #print(type(data[0]))
-            df = pd.DataFrame(data)  # Convert MongoDB documents to a pandas DataFrame
-            print(df.columns)
+            df = pd.DataFrame(data)
+
+            # Apply filters to DataFrame
             for column, values in filters.items():
                 if values:
+                    if column not in df.columns:
+                        print(f"Column {column} not found in DataFrame!")
+                        continue
                     df = df[df[column].isin(values)]
-            # Construct the Sankey diagram's nodes
+
+            # Risk color mapping based on the endpoint (last node)
+            risk_colors = {
+                "0.64+ (High Risk)": "#B22222",
+                "0.34-0.63 (Moderate Risk)": "#eb7800",
+                "0-0.33 (Low Risk)": "#006400"
+            }
+
+            # Initialize data structures
             labels = []
-            for node in nodes:
-                if node in df.columns:
-                    labels.extend(df[node].unique().tolist())
-
-            labels = sorted(set(labels))  # Remove duplicates and sort
-            #print(df.columns)
-
-            # Generate a color map for the nodes
-            color_map = {}
-            colors = [
-                "gray", "purple", "blue", "orange", "green", "red",
-                "lightblue", "pink", "yellow", "brown", "cyan"
-            ]
-            for i, label in enumerate(labels):
-                color_map[label] = colors[i % len(colors)]  # Cycle through colors
-
-            # Build the source, target, and value lists for the links
+            label_map = {}
             source = []
             target = []
             value = []
+            link_colors = []
 
-            # Create links based on the DataFrame rows and nodes
+            # Process rows to generate paths
             for _, row in df.iterrows():
-                for i in range(len(nodes) - 1):
-                    source_label = row[nodes[i]]
-                    target_label = row[nodes[i + 1]]
-                    source_idx = labels.index(source_label)
-                    target_idx = labels.index(target_label)
+                # Generate the path for this row
+                path_nodes = [str(row[node]) for node in nodes if pd.notna(row[node])]
 
-                    # Avoid duplicate source-target pairs
-                    if (source_idx, target_idx) not in zip(source, target):
+                # Ensure there are at least two nodes
+                if len(path_nodes) < 2:
+                    continue
+
+                # Determine the color for the path based on the last node
+                last_node = path_nodes[-1]
+                path_color = risk_colors.get(last_node, "#efebe4")
+
+                # Add each node to the label map and labels list
+                for node in path_nodes:
+                    if node not in label_map:
+                        label_map[node] = len(labels)
+                        labels.append(node)
+
+                # Create links for each segment of the path
+                for i in range(len(path_nodes) - 1):
+                    source_label = path_nodes[i]
+                    target_label = path_nodes[i + 1]
+
+                    source_idx = label_map[source_label]
+                    target_idx = label_map[target_label]
+
+                    if (source_idx, target_idx, path_color) not in zip(source, target, link_colors):
                         source.append(source_idx)
                         target.append(target_idx)
                         value.append(1)
+                        link_colors.append(path_color)
                     else:
-                        idx = list(zip(source, target)).index((source_idx, target_idx))
+                        # Increment the value for an existing link
+                        idx = list(zip(source, target, link_colors)).index((source_idx, target_idx, path_color))
                         value[idx] += 1
 
+            # Assign colors to nodes (Risk nodes get specific colors, others gray)
+            node_colors = []
+            for node in labels:
+                if node in risk_colors:  # Check if the node is a Risk node
+                    node_colors.append(risk_colors[node])  # Use risk-specific colors
+                else:
+                    node_colors.append("#efebe4")  # Default neutral color for non-risk nodes
+
+            # Debugging: Print processed paths and their colors
+            #print("Processed nodes and their colors:")
+            #for i, (node, color) in enumerate(zip(labels, node_colors), 1):
+             #   print(f"Node {i}: {node} (Color: {color})")
+
+            #print("Processed paths and colors:")
+            #for i, (src, tgt, color) in enumerate(zip(source, target, link_colors), 1):
+            #    print(f"Link {i}: {labels[src]} -> {labels[tgt]} (Color: {color})")
 
             # Prepare the Sankey data structure in JSON format
             sankey_data = {
                 "nodes": {
                     "label": labels,
-                    "color": [color_map[label] for label in labels],
+                    "color": node_colors,  # Neutral node color
                 },
                 "links": {
                     "source": source,
                     "target": target,
                     "value": value,
+                    "color": link_colors,  # Ensure link colors match the sub-path's last node
                 },
             }
-            print(sankey_data)
 
+            #print("Final Sankey Data:", sankey_data)
             return sankey_data
 
         except Exception as e:
             return {"error": f"Invalid input: {str(e)}"}, 400
+
 
 
 # Register the resource to the Flask API
