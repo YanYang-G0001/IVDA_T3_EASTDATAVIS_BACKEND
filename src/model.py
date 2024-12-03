@@ -50,11 +50,12 @@ class PatientInput(BaseModel):
 
 
 class PatientsSankey(BaseModel):
-    C1: str
-    C2: str
-    C3: str
-    C4: str
-    C5: str
-    C6: str
-    C7: str
-    C8: str
+    Pregnancies: str
+    Glucose: str
+    Blood_pressure: str
+    Skin_thickness: str
+    Insulin: str
+    Body_mass_index: str
+    Diabetes_pedigree_function: str
+    Age: str
+    Diabetes_Probability: str
