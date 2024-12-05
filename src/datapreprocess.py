@@ -20,7 +20,7 @@ def normalize_for_radar_pre():
 def normalize_for_radar(patient_data):
     scaler, columns = normalize_for_radar_pre()
     patient_df = pd.DataFrame([patient_data])[columns]
-
     normalized_data = scaler.transform(patient_df)
-    normalized_values_str = [round(float(val), 2) for val in normalized_data[0]]
+    normalized_values_str = ', '.join([str(round(float(val), 2)) for val in normalized_data[0]])
+    print(normalized_values_str)
     return normalized_values_str
