@@ -43,9 +43,7 @@ class PatientsCatList(Resource):
         # we return all companies as json
         return [PatientsCat(**doc).to_json() for doc in cursor]
 def individual_predict(patient: PatientInput) -> tuple[str, str]:
-
-    # other data like 'Pregnancies' has been set to the average
-    input_data = {
+    input_data_1 = {
         'Pregnancies': patient.pregnancies,
         'Glucose': patient.glucose,
         'Blood pressure': patient.bp,
@@ -55,18 +53,25 @@ def individual_predict(patient: PatientInput) -> tuple[str, str]:
         'Diabetes pedigree function': patient.dpf,
         'Age': patient.age
     }
-    input_df = pd.DataFrame([input_data])
+    input_df_1 = pd.DataFrame([input_data_1])
 
-    input_df = input_df[['Pregnancies', 'Glucose', 'Blood pressure', 'Skin thickness',
+    input_df_1 = input_df_1[['Pregnancies', 'Glucose', 'Blood pressure', 'Skin thickness',
                          'Insulin', 'Body mass index', 'Diabetes pedigree function', 'Age']]
+    # predict : 0-non diabetes or 1-diabetes
+    pred_label = best_model.predict(input_df_1)[0]
+
+    # other data like 'Pregnancies' has been set to the average
+    input_data_2 = {
+        'glucose': patient.glucose,
+        'bp': patient.bp,
+        'insulin': patient.insulin,
+        'bmi': patient.bmi,
+        'age': patient.age,
+    }
 
     # predict : 0-non diabetes or 1-diabetes
-    pred_label = best_model.predict(input_df)[0]
     # get normalized data
-    # dpm increased by 100 times, pregnancy increased by 10 times, for visualization
-    input_data['Diabetes pedigree function'] = input_data['Diabetes pedigree function']  * 100
-    input_data['Pregnancies'] = input_data['Pregnancies'] * 10
-    normalized_data = normalize_for_radar(input_data)
+    normalized_data = normalize_for_radar(input_data_2)
     return str(pred_label), str(normalized_data)
 
 class PredictDisease(Resource):
