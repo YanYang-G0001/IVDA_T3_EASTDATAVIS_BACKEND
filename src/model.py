@@ -39,31 +39,23 @@ class PredictionResult(BaseModel):
     prediction: str  # "Positive" or "Negative"
 
 class PatientInput(BaseModel):
-    id: int
-    name: str
+    pregnancies: int
+    glucose: float
+    bp: float
+    st: float
+    insulin: float
+    bmi: float
+    dpf: float
     age: int
-    gender: str
-    polyuria: str
-    polydipsia: str
-    sudden_weight_loss: str
-    weakness: str
-    polyphagia: str
-    genital_thrush: str
-    visual_blurring: str
-    itching: str
-    irritability: str
-    delayed_healing: str
-    partial_paresis: str
-    muscle_stiffness: str
-    alopecia: str
-    obesity: str
+
 
 class PatientsSankey(BaseModel):
-    C1: str
-    C2: str
-    C3: str
-    C4: str
-    C5: str
-    C6: str
-    C7: str
-    C8: str
+    Pregnancies: str
+    Glucose: str
+    Blood_pressure: str
+    Skin_thickness: str
+    Insulin: str
+    Body_mass_index: str
+    Diabetes_pedigree_function: str
+    Age: str
+    Diabetes_Probability: str
